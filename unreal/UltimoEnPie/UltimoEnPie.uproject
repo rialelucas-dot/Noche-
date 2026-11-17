@@ -1,0 +1,20 @@
+{
+	"FileVersion": 3,
+	"EngineAssociation": "5.5",
+	"Category": "",
+	"Description": "Ultimo en Pie: battle royale en tercera persona",
+	"Modules": [
+		{
+			"Name": "UltimoEnPie",
+			"Type": "Runtime",
+			"LoadingPhase": "Default",
+			"AdditionalDependencies": [ "Engine", "EnhancedInput", "ProceduralMeshComponent", "AIModule" ]
+		}
+	],
+	"Plugins": [
+		{ "Name": "EnhancedInput", "Enabled": true },
+		{ "Name": "ProceduralMeshComponent", "Enabled": true },
+		{ "Name": "PythonScriptPlugin", "Enabled": true },
+		{ "Name": "EditorScriptingUtilities", "Enabled": true }
+	]
+}

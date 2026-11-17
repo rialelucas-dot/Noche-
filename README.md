@@ -10,6 +10,8 @@ python3 -m http.server 8000
 
 y abrí `http://localhost:8000` en Chrome, Edge, Firefox o Safari. Si abrís `index.html` directo con doble clic, el juego funciona igual pero con colores lisos en lugar de texturas.
 
+**Versión Unreal Engine 5:** en `unreal/UltimoEnPie` está el proyecto para Unreal Engine 5 (C++), con luz Lumen, cielo y nubes reales y el maniquí animado. La guía de instalación paso a paso está en [`unreal/UltimoEnPie/LEEME.md`](unreal/UltimoEnPie/LEEME.md).
+
 **Versión liviana:** `cenital.html` es la primera versión, con vista desde arriba, para compus o celulares lentos (no necesita servidor).
 
 ## Cómo se juega

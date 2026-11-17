@@ -10,6 +10,7 @@
 #include "InputModifiers.h"
 #include "InputActionValue.h"
 #include "Engine/LocalPlayer.h"
+#include "Engine/World.h"
 
 // índices de las acciones (con prefijo para no tapar otros nombres)
 namespace EAct { enum Type { AMove, ALook, AFire, AAim, ASprint, AJump, AUse, AReload, AHeal, ASwap, ASlot1, ASlot2, APause, ARestart, AMap, ACount }; }

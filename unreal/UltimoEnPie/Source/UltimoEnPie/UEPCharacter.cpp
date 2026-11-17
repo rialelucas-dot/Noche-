@@ -5,6 +5,7 @@
 #include "UEPActors.h"
 #include "UEPBotController.h"
 #include "Camera/CameraComponent.h"
+#include "Engine/World.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/SkeletalMeshComponent.h"

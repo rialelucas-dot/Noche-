@@ -43,7 +43,9 @@ public:
 	UPROPERTY(Config) bool bFlipWinding = false;
 
 	static constexpr float HalfM = 450.f;   // la isla entra en un cuadrado de 900 m
-	static constexpr int32 HSeg = 225;      // celdas del relieve (4 m cada una)
+	static constexpr int32 HSeg = 225;      // celdas del relieve
+	static constexpr int32 HN = HSeg + 1;
+	static constexpr float HCell = 4.f;     // metros por celda
 
 private:
 	UPROPERTY(VisibleAnywhere) TObjectPtr<USceneComponent> Root;

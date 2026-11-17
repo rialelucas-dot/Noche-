@@ -5,6 +5,7 @@
 #include "UEPIsland.h"
 #include "UEPActors.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Engine/World.h"
 
 namespace
 {
@@ -106,7 +107,7 @@ void AUEPBotController::Think()
 	{
 		if (!O || O == M || !O->bAlive || O->bInPlane || O->bParachute) continue;
 		const float R = O->bBot && O != Threat.Get() ? Sight * 0.55f : Sight, D2 = FVector::DistSquared(O->GetActorLocation(), P);
-		if (D2 < R * R) Cands.Add({ D2, O });
+		if (D2 < R * R) Cands.Emplace(D2, O);
 	}
 	Cands.Sort([](const TPair<float, AUEPCharacter*>& A, const TPair<float, AUEPCharacter*>& B) { return A.Key < B.Key; });
 	AUEPCharacter* Seen = nullptr; float Sd = 0.f;

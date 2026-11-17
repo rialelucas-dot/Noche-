@@ -6,6 +6,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/Texture2D.h"
+#include "TextureResource.h"
 #include "Materials/Material.h"
 #include "MaterialDomain.h"
 #include "UObject/ConstructorHelpers.h"
@@ -13,8 +14,6 @@
 namespace
 {
 	const TCHAR* GTownNames[] = { TEXT("Puerto Niebla"), TEXT("Villa Cardo"), TEXT("La Cantera"), TEXT("Base Cóndor"), TEXT("Los Pinos"), TEXT("Granja Ocaso"), TEXT("Bahía Seca"), TEXT("El Mirador") };
-	constexpr float HCell = 4.f; // metros por celda del relieve
-	constexpr int32 HN = AUEPIsland::HSeg + 1;
 	float SmoothStep(float A, float B, float X) { const float T = FMath::Clamp((X - A) / (B - A), 0.f, 1.f); return T * T * (3.f - 2.f * T); }
 }
 
@@ -176,7 +175,7 @@ void AUEPIsland::BuildTownsAndRoads(FRandomStream& R)
 	for (int32 I = 0; I < Towns.Num(); ++I)
 	{
 		TArray<TPair<float, int32>> Near;
-		for (int32 J = 0; J < Towns.Num(); ++J) if (J != I) Near.Add({ (float)FVector2D::DistSquared(Towns[I].Pos, Towns[J].Pos), J });
+		for (int32 J = 0; J < Towns.Num(); ++J) if (J != I) Near.Emplace((float)FVector2D::DistSquared(Towns[I].Pos, Towns[J].Pos), J);
 		Near.Sort([](const TPair<float, int32>& A, const TPair<float, int32>& B) { return A.Key < B.Key; });
 		for (int32 K = 0; K < FMath::Min(2, Near.Num()); ++K)
 		{

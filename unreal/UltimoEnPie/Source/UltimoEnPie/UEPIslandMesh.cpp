@@ -6,9 +6,6 @@
 
 namespace
 {
-	constexpr float HCell = 4.f;
-	constexpr int32 HN = AUEPIsland::HSeg + 1;
-
 	FVector Perp(const FVector& Axis) { return FMath::Abs(Axis.Z) < 0.9f ? FVector::CrossProduct(Axis, FVector::UpVector).GetSafeNormal() : FVector::CrossProduct(Axis, FVector::ForwardVector).GetSafeNormal(); }
 
 	// tronco o rama: cilindro con conicidad y una leve curva

@@ -6,6 +6,7 @@
 #include "UEPActors.h"
 #include "UEPPlayerController.h"
 #include "Engine/Canvas.h"
+#include "Engine/World.h"
 #include "Engine/Engine.h"
 #include "Engine/Font.h"
 #include "Engine/Texture2D.h"

@@ -2,6 +2,8 @@
 #include "UEPIsland.h"
 #include "UltimoEnPie.h"
 #include "Components/StaticMeshComponent.h"
+#include "Materials/MaterialInterface.h"
+#include "Engine/World.h"
 #include "Engine/StaticMesh.h"
 #include "Kismet/GameplayStatics.h"
 #include "Sound/SoundBase.h"

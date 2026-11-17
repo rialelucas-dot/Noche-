@@ -5,7 +5,7 @@ const PHASES = [
 ];
 const Zone = { cur: { x: 0, z: 0, r: 430 }, next: { x: 0, z: 0, r: 235 }, from: null, phase: 0, mode: 'wait', timer: 75, dps: 0.6 };
 const zoneWallGeo = new THREE.CylinderGeometry(1, 1, 1, 128, 1, true); zoneWallGeo.translate(0, 0.5, 0);
-const zoneWall = new THREE.Mesh(zoneWallGeo, new THREE.MeshBasicMaterial({ color: 0x59b8ff, transparent: true, opacity: 0.2, side: THREE.DoubleSide, depthWrite: false }));
+const zoneWall = new THREE.Mesh(zoneWallGeo, new THREE.MeshBasicMaterial({ color: 0x4aa8ff, transparent: true, opacity: 0.24, side: THREE.DoubleSide, depthWrite: false }));
 const zoneRing = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.75, depthWrite: false }));
 scene.add(zoneWall, zoneRing);
 function zoneReset() { Object.assign(Zone, { cur: { x: 0, z: 0, r: 430 }, phase: 0, mode: 'wait', timer: PHASES[0].wait, dps: 0.6 }); pickNext(); }
@@ -20,7 +20,7 @@ function pickNext() {
   Zone.next = { x: nx, z: nz, r: P.r };
   zoneRing.geometry.dispose();
   const g = new THREE.RingGeometry(Math.max(0.01, P.r - 0.5), P.r + 0.5, 128); g.rotateX(-Math.PI / 2);
-  zoneRing.geometry = g; zoneRing.position.set(nx, 0.18, nz); zoneRing.visible = P.r > 0;
+  zoneRing.geometry = g; zoneRing.position.set(nx, 0.18, nz); zoneRing.visible = false;
 }
 function zoneUpdate(dt) {
   if (Zone.mode === 'final') return;
@@ -36,8 +36,8 @@ function zoneUpdate(dt) {
       else { Zone.mode = 'final'; Zone.timer = 0; Zone.dps = 20; zoneRing.visible = false; }
     }
   }
-  zoneWall.position.set(Zone.cur.x, -1, Zone.cur.z);
-  zoneWall.scale.set(Math.max(0.01, Zone.cur.r), 34, Math.max(0.01, Zone.cur.r));
+  zoneWall.position.set(Zone.cur.x, -12, Zone.cur.z);
+  zoneWall.scale.set(Math.max(0.01, Zone.cur.r), 110, Math.max(0.01, Zone.cur.r));
 }
 
 // ───────────────────────── HUD ─────────────────────────
@@ -56,9 +56,11 @@ const Hud = {
     setTimeout(() => el.remove(), 6500);
   },
   toast(title, sub = '', dur = 2) { $('toast').innerHTML = `${title}${sub ? `<small>${sub}</small>` : ''}`; this.toastT = dur; },
-  hitmark() { const c = $('cross'); c.classList.add('hit'); clearTimeout(this._hm); this._hm = setTimeout(() => c.classList.remove('hit'), 130); },
-  hurt() { const v = $('vignette'); v.style.opacity = '1'; clearTimeout(this._hu); this._hu = setTimeout(() => (v.style.opacity = player && player.hp < 30 ? '0.55' : '0'), 160); },
-  dmgNum(x, z, amt) { this.nums.push({ x, z, amt: Math.max(1, Math.round(amt)), t: 0.8, ox: rnd(-0.6, 0.6) }); },
+  hitmark(head) { const c = $('cross'); c.classList.toggle('head', !!head); c.classList.add('hit'); clearTimeout(this._hm); this._hm = setTimeout(() => c.classList.remove('hit', 'head'), 140); },
+  hurt(src) {
+    if (src && player) { const a = Math.atan2(src.z - player.z, src.x - player.x) - camYaw(); const el = $('dmgDir'); el.style.transform = `translate(-50%, -50%) rotate(${a + Math.PI / 2}rad)`; el.style.opacity = '1'; clearTimeout(this._dd); this._dd = setTimeout(() => (el.style.opacity = '0'), 700); }
+    const v = $('vignette'); v.style.opacity = '1'; clearTimeout(this._hu); this._hu = setTimeout(() => (v.style.opacity = player && player.hp < 30 ? '0.55' : '0'), 160); },
+  dmgNum(x, y, z, amt, head) { this.nums.push({ x, y, z, head, amt: Math.max(1, Math.round(amt)), t: 0.8, ox: rnd(-0.4, 0.4) }); },
   buildMapBase() {
     const c = mapBase.getContext('2d'), img = c.createImageData(512, 512), d = img.data, S = WORLD / 512;
     for (let py = 0; py < 512; py++) for (let px = 0; px < 512; px++) {
@@ -137,18 +139,19 @@ const Hud = {
     const dpr = Math.min(devicePixelRatio || 1, 2), W = innerWidth, H = innerHeight;
     if (fx.width !== Math.round(W * dpr)) { fx.width = Math.round(W * dpr); fx.height = Math.round(H * dpr); }
     fxc.setTransform(dpr, 0, 0, dpr, 0, 0); fxc.clearRect(0, 0, W, H);
-    const proj = (x, y, z) => { _pv.set(x, y, z).project(camera); return [(_pv.x + 1) / 2 * W, (1 - _pv.y) / 2 * H, _pv.z < 1]; };
+    const proj = (x, y, z) => { _pv.set(x, y, z).project(camera); return [(_pv.x + 1) / 2 * W, (1 - _pv.y) / 2 * H, _pv.z < 1 && _pv.z > -1]; };
     for (const f of fighters) {
       if (f === player || !f.alive || f.inPlane || Game.time - (f.lastPHit || -9) > 3) continue;
-      const [x, y, ok] = proj(f.x, 2.9, f.z); if (!ok) continue;
+      if (dist2(f.x, f.z, camera.position.x, camera.position.z) > 160 * 160) continue;
+      const [x, y, ok] = proj(f.x, f.y + 2.15, f.z); if (!ok) continue;
       fxc.fillStyle = 'rgba(14,17,23,.7)'; fxc.fillRect(x - 21, y - 4, 42, 7);
       fxc.fillStyle = '#ff5a4f'; fxc.fillRect(x - 20, y - 3, 40 * clamp(f.hp / 100, 0, 1), 5);
       if (f.armor > 0) { fxc.fillStyle = '#7fb0ff'; fxc.fillRect(x - 20, y + 3, 40 * clamp(f.armor / 100, 0, 1), 2); }
     }
     fxc.font = '800 18px "Saira Condensed", "Arial Narrow", sans-serif'; fxc.textAlign = 'center';
     for (const n of this.nums) {
-      n.t -= dt; const [x, y, ok] = proj(n.x + n.ox, 3.2 + (0.8 - n.t) * 2.5, n.z); if (!ok) continue;
-      fxc.globalAlpha = clamp(n.t / 0.4, 0, 1); fxc.fillStyle = '#0e1117'; fxc.fillText(n.amt, x + 1, y + 1); fxc.fillStyle = n.amt >= 50 ? '#ffd34d' : '#f3ece2'; fxc.fillText(n.amt, x, y);
+      n.t -= dt; const [x, y, ok] = proj(n.x + n.ox, n.y + (0.8 - n.t) * 1.2, n.z); if (!ok) continue;
+      fxc.globalAlpha = clamp(n.t / 0.4, 0, 1); fxc.fillStyle = '#0e1117'; fxc.fillText(n.amt, x + 1, y + 1); fxc.fillStyle = n.head ? '#ffd34d' : '#f3ece2'; fxc.fillText(n.amt, x, y);
     }
     fxc.globalAlpha = 1; this.nums = this.nums.filter((n) => n.t > 0);
   },

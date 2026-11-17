@@ -4,7 +4,10 @@ function initBrain(f) {
     react: 0, aimErr: 0, aimT: 0, strafe: 1, strafeT: 0, chkT: 0.8, lastX: 0, lastZ: 0, unstickT: 0, unstickA: 0, stuck: 0,
     lootIt: null, ban: null, swapT: 0, jumpAt: rnd(0.12, 0.82), landX: 0, landZ: 0 };
 }
-function hasLOS(a, b, d) { const dx = (b.x - a.x) / d, dz = (b.z - a.z) / d; return raycastWorld(a.x, a.z, dx, dz, d) >= d - 0.7; }
+function hasLOS(a, b) {
+  const oy = a.y + 1.6, dx = b.x - a.x, dy = b.y + 1.2 - oy, dz = b.z - a.z, l = Math.hypot(dx, dy, dz) || 1;
+  return raycast3D(a.x, oy, a.z, dx / l, dy / l, dz / l, l) >= l - 0.6;
+}
 function nearestDoor(b, x, z) { let best = b.doors[0], bd = 1e12; for (const d of b.doors) { const v = dist2(d.out.x, d.out.z, x, z); if (v < bd) { bd = v; best = d; } } return best; }
 function setGoal(f, x, z) {
   const ai = f.ai; ai.goal = { x, z }; ai.wps = []; ai.stuck = 0;
@@ -16,7 +19,7 @@ function setGoal(f, x, z) {
 function randomInCircle(c, frac = 0.8) {
   for (let k = 0; k < 30; k++) {
     const a = Math.random() * TAU, r = Math.sqrt(Math.random()) * c.r * frac, x = c.x + Math.cos(a) * r, z = c.z + Math.sin(a) * r;
-    if (landAt(x, z) > 6 && pointFree(x, z, 1)) return { x, z };
+    if (landAt(x, z) > 6 && pointFree(x, z, 1, groundH(x, z))) return { x, z };
   }
   return nearestLand(c.x, c.z, 6);
 }
@@ -47,12 +50,12 @@ function botThink(f) {
   const cands = [];
   for (const o of fighters) {
     if (o === f || !o.alive || o.falling || o.inPlane) continue;
-    const d2 = dist2(o.x, o.z, f.x, f.z), r = o.bot && o !== ai.threat ? D.sight * 0.7 : D.sight; if (d2 < r * r) cands.push([d2, o]);
+    const d2 = dist2(o.x, o.z, f.x, f.z), r = o.bot && o !== ai.threat ? D.sight * 0.55 : D.sight; if (d2 < r * r) cands.push([d2, o]);
   }
   cands.sort((a, b) => a[0] - b[0]);
   let seen = null, sd = 0;
-  for (let i = 0; i < Math.min(3, cands.length); i++) { const d = Math.sqrt(cands[i][0]); if (hasLOS(f, cands[i][1], d)) { seen = cands[i][1]; sd = d; break; } }
-  if (!seen && ai.threat && ai.threat.alive && ai.threatT > 0) { const d = Math.sqrt(dist2(ai.threat.x, ai.threat.z, f.x, f.z)); if (d < 80 && hasLOS(f, ai.threat, d)) { seen = ai.threat; sd = d; } }
+  for (let i = 0; i < Math.min(3, cands.length); i++) { const d = Math.sqrt(cands[i][0]); if (hasLOS(f, cands[i][1])) { seen = cands[i][1]; sd = d; break; } }
+  if (!seen && ai.threat && ai.threat.alive && ai.threatT > 0) { const d = Math.sqrt(dist2(ai.threat.x, ai.threat.z, f.x, f.z)); if (d < 90 && hasLOS(f, ai.threat)) { seen = ai.threat; sd = d; } }
   if (seen && ai.target !== seen) ai.react = D.reaction * rnd(0.8, 1.35);
   ai.target = seen; ai.los = !!seen;
 
@@ -125,11 +128,15 @@ function botUpdate(f, dt) {
     const st = f.reloadT > 0 ? 1.1 : 0.8;
     mx = nx * rad - nz * ai.strafe * st; mz = nz * rad + nx * ai.strafe * st;
     ai.aimT -= dt;
-    if (ai.aimT <= 0) { ai.aimT = rnd(0.22, 0.42); const tv = Math.hypot(t.vx, t.vz); ai.aimErr = gauss() * D.aim * (1 + tv / 8) * (d > 50 ? 1.3 : 1); }
+    if (ai.aimT <= 0) { ai.aimT = rnd(0.22, 0.42); const tv = Math.hypot(t.vx, t.vz); ai.aimErr = gauss() * D.aim * (1 + tv / 8) * (d > 50 ? 1.3 : 1); ai.aimErrP = gauss() * D.aim * 0.5; ai.headAim = SETTINGS.diff === 'dificil' && Math.random() < 0.25; }
     want = Math.atan2(dz, dx) + ai.aimErr;
     if (ai.react <= 0 && ai.los && Math.abs(angDiff(f.angle, want)) < 0.22) {
-      if (!w) { if (d < 2.2) fire(f, f.angle); }
-      else if (d < WEAP[w.k].range * 0.95) fire(f, f.angle);
+      if (!w) { if (d < 2.2) fire(f, 0, 0, 0); }
+      else if (d < WEAP[w.k].range * 0.95) {
+        const m = muzzle(f), ax = t.x - m.x, ay = t.y + (ai.headAim ? 1.62 : 1.2) - m.y, az = t.z - m.z, l = Math.hypot(ax, ay, az) || 1;
+        const yaw = Math.atan2(az, ax) + ai.aimErr, pit = Math.asin(clamp(ay / l, -1, 1)) + (ai.aimErrP || 0), cp = Math.cos(pit);
+        fire(f, Math.cos(yaw) * cp, Math.sin(pit), Math.sin(yaw) * cp);
+      }
     }
   } else if (ai.goal && ai.state !== 'heal') {
     const wp = ai.wps[0] || ai.goal, dx = wp.x - f.x, dz = wp.z - f.z, d = Math.hypot(dx, dz);
@@ -146,7 +153,7 @@ function botUpdate(f, dt) {
       const base = Math.atan2(mz, mx);
       for (const off of [0, 0.6, -0.6, 1.2, -1.2, 1.8, -1.8]) {
         const a = base + off, px = f.x + Math.cos(a) * 1.7, pz = f.z + Math.sin(a) * 1.7;
-        if (pointFree(px, pz, 0.62) && landAt(px, pz) > 1.5) { mx = Math.cos(a); mz = Math.sin(a); break; }
+        if (pointFree(px, pz, 0.5, f.y) && landAt(px, pz) > 1.5) { mx = Math.cos(a); mz = Math.sin(a); break; }
       }
     }
     ai.chkT -= dt;
@@ -161,5 +168,6 @@ function botUpdate(f, dt) {
   }
   if (want === null && ml > 0.01) want = Math.atan2(mz, mx);
   if (want !== null) f.angle += clamp(angDiff(f.angle, want), -9 * dt, 9 * dt);
+  f.sprint = !t && ai.state !== 'heal' && !!ai.goal && dist2(f.x, f.z, (ai.wps[0] || ai.goal).x, (ai.wps[0] || ai.goal).z) > 15 * 15;
   moveFighter(f, mx, mz, fighterSpeed(f) * (ai.state === 'fight' ? 0.85 : 1), dt);
 }

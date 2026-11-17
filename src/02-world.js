@@ -1,29 +1,56 @@
-// ───────────────────────── render y escena ─────────────────────────
+// ───────────────────────── render, cielo y luces ─────────────────────────
 const WORLD = 900, HALF = WORLD / 2;
-const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance', stencil: false });
+const renderer = new THREE.WebGLRenderer({ antialias: !IS_TOUCH, powerPreference: 'high-performance', stencil: false });
 renderer.setSize(innerWidth, innerHeight);
-renderer.shadowMap.type = THREE.PCFShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 $('game').appendChild(renderer.domElement);
 
-const FOG = 0x7d6f7c;
+const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+const SUN_DIR = new THREE.Vector3(-0.6, 0.34, 0.72).normalize(); // sol bajo de la tarde
+const SKY = { top: new THREE.Color(0x3a6db5), horizon: new THREE.Color(0xf2cfa6), ground: new THREE.Color(0x7a7266), sun: new THREE.Color(0xfff1d6) };
+const FOG_COLOR = new THREE.Color(0xdcc7ad);
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(FOG);
-scene.fog = new THREE.Fog(FOG, 95, 230);
-const camera = new THREE.PerspectiveCamera(48, innerWidth / innerHeight, 1, 420);
+scene.fog = new THREE.FogExp2(FOG_COLOR, 0.0042);
+const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 800);
 
-const hemi = new THREE.HemisphereLight(0xc4ccff, 0x6a4c3a, 1.25);
-scene.add(hemi);
-const sun = new THREE.DirectionalLight(0xffd1a6, 2.1);
-sun.position.set(-40, 48, 22);
-sun.shadow.mapSize.set(1024, 1024);
-Object.assign(sun.shadow.camera, { left: -48, right: 48, top: 48, bottom: -48, near: 1, far: 140 });
-sun.shadow.bias = -0.0008;
-scene.add(sun, sun.target);
+function skyMaterial() {
+  return new THREE.ShaderMaterial({
+    uniforms: { uSun: { value: SUN_DIR }, uTop: { value: SKY.top }, uHor: { value: SKY.horizon }, uGround: { value: SKY.ground }, uSunCol: { value: SKY.sun } },
+    vertexShader: 'varying vec3 vDir; void main(){ vDir = position; vec4 p = projectionMatrix * modelViewMatrix * vec4(position, 1.0); gl_Position = p.xyww; }',
+    fragmentShader: `varying vec3 vDir; uniform vec3 uSun, uTop, uHor, uGround, uSunCol;
+      void main(){
+        vec3 d = normalize(vDir); float h = d.y;
+        vec3 col = mix(uHor, uTop, pow(clamp(h, 0.0, 1.0), 0.42));
+        col = mix(col, uGround, smoothstep(0.0, -0.25, h));
+        float s = max(dot(d, uSun), 0.0);
+        col += uSunCol * (pow(s, 900.0) * 14.0 + pow(s, 14.0) * 0.4 + pow(s, 3.0) * 0.12);
+        gl_FragColor = vec4(col, 1.0);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }`,
+    side: THREE.BackSide, depthWrite: false, fog: false,
+  });
+}
+const sky = new THREE.Mesh(new THREE.SphereGeometry(400, 32, 16), skyMaterial());
+sky.frustumCulled = false; sky.renderOrder = -1; scene.add(sky);
+{ // iluminación ambiental a partir del cielo (reflejos suaves en todos los materiales)
+  const skyScene = new THREE.Scene(); skyScene.add(new THREE.Mesh(new THREE.SphereGeometry(40, 32, 16), skyMaterial()));
+  const pm = new THREE.PMREMGenerator(renderer); scene.environment = pm.fromScene(skyScene, 0.04).texture; pm.dispose();
+}
+const hemi = new THREE.HemisphereLight(0xc8d8ff, 0x5a4a3a, 0.35);
+const sun = new THREE.DirectionalLight(0xffdcb0, 2.7);
+sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -55, right: 55, top: 55, bottom: -55, near: 1, far: 260 });
+sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.05;
+const flash = new THREE.PointLight(0xffc070, 0, 10, 2);
+scene.add(hemi, sun, sun.target, flash);
 
-// Material que se "abre" con tramado alrededor del jugador: así árboles, techos y paredes no lo tapan.
-const fadeU = { value: new THREE.Vector4(0, 0, 7, 1) };
+// Material que se vuelve transparente (con tramado) muy cerca de la cámara: el follaje no tapa la vista.
+const fadeU = { value: new THREE.Vector4(0, 0, 0, 1) };
 function fadeMat(params) {
-  const m = new THREE.MeshLambertMaterial(params);
+  const m = new THREE.MeshStandardMaterial(params);
   m.onBeforeCompile = (sh) => {
     sh.uniforms.uFade = fadeU;
     sh.vertexShader = 'varying vec3 vWPos;\n' + sh.vertexShader.replace('#include <project_vertex>', `#include <project_vertex>
@@ -37,23 +64,36 @@ uniform vec4 uFade;
 float bayer2_(vec2 a) { a = floor(a); return fract(dot(a, vec2(0.5, a.y * 0.75))); }
 float bayer4_(vec2 a) { return bayer2_(0.5 * a) * 0.25 + bayer2_(a); }
 ` + sh.fragmentShader.replace('void main() {', `void main() {
-      if (uFade.w > 0.5 && vWPos.y > 1.7) {
-        float a_ = smoothstep(uFade.z * 0.45, uFade.z, length(vWPos.xz - uFade.xy));
+      if (uFade.w > 0.5) {
+        float a_ = smoothstep(1.0, 3.6, distance(vWPos, uFade.xyz));
         if (a_ < 0.999 && a_ < bayer4_(gl_FragCoord.xy) + 0.03) discard;
       }`);
   };
   return m;
 }
 
-// ───────────────────────── isla ─────────────────────────
+// ───────────────────────── isla y relieve ─────────────────────────
 let coastP = [0, 0, 0, 0];
 function coastR(th) { return 345 + 32 * Math.sin(3 * th + coastP[0]) + 18 * Math.sin(5 * th + coastP[1]) + 9 * Math.sin(9 * th + coastP[2]) + 5 * Math.sin(14 * th + coastP[3]); }
 function landAt(x, z) { return coastR(Math.atan2(z, x)) - Math.hypot(x, z); }
 const forestAt = (x, z) => vnoise(x / 75 + 40, z / 75 - 13);
+const fbm = (x, z) => (vnoise(x, z) * 0.57 + vnoise(x * 2.1 + 5.3, z * 2.1 - 1.7) * 0.29 + vnoise(x * 4.3 - 2.1, z * 4.3 + 7.7) * 0.14);
+const HSEG = 225, HCELL = WORLD / HSEG, HN = HSEG + 1;
+let heights = new Float32Array(HN * HN);
+// altura exacta del terreno, interpolando como los triángulos de la malla
+function groundH(x, z) {
+  const fx = (x + HALF) / HCELL, fz = (z + HALF) / HCELL, ix = Math.floor(fx), iz = Math.floor(fz);
+  if (ix < 0 || iz < 0 || ix >= HSEG || iz >= HSEG) return -7;
+  const u = fx - ix, v = fz - iz, i = iz * HN + ix;
+  const ha = heights[i], hb = heights[i + HN], hc = heights[i + HN + 1], hd = heights[i + 1];
+  return u + v <= 1 ? ha + (hd - ha) * u + (hb - ha) * v : hc + (hb - hc) * (1 - u) + (hd - hc) * (1 - v);
+}
+let MAX_H = 30;
 
 const World = { towns: [], buildings: [], roads: [], colliders: [], seed: 0 };
 
-// grilla espacial de colisionadores
+// ───────────────────────── colisiones y rayos 3D ─────────────────────────
+// colisionador: { t: 0 círculo (x, z, r) | 1 caja (x0, x1, z0, z1), y0, y1 }
 const CELL = 8, GN = Math.ceil(WORLD / CELL);
 let grid = [];
 let stamp = 1;
@@ -72,18 +112,21 @@ function forNear(x, z, r, fn) {
     for (let k = 0; k < cell.length; k++) { const c = C[cell[k]]; if (c.s === stamp) continue; c.s = stamp; fn(c); }
   }
 }
-function pointFree(x, z, r) {
+function pointFree(x, z, r, gy = null) {
   let free = true;
   forNear(x, z, r + 1, (c) => {
     if (!free) return;
+    if (gy !== null && (c.y0 > gy + 1.7 || c.y1 < gy + 0.35)) return;
     if (c.t === 0) { if (dist2(x, z, c.x, c.z) < (r + c.r) ** 2) free = false; }
     else { const cx = clamp(x, c.x0, c.x1), cz = clamp(z, c.z0, c.z1); if (dist2(x, z, cx, cz) < r * r) free = false; }
   });
   return free;
 }
-// empuja una entidad circular fuera de los obstáculos
+// empuja una entidad circular fuera de los obstáculos que tocan su cuerpo
 function resolveCircle(e, r) {
+  const gy = groundH(e.x, e.z);
   forNear(e.x, e.z, r + 0.5, (c) => {
+    if (c.y0 > gy + 1.7 || c.y1 < gy + 0.35) return;
     if (c.t === 0) {
       const dx = e.x - c.x, dz = e.z - c.z, rr = r + c.r, d2 = dx * dx + dz * dz;
       if (d2 < rr * rr && d2 > 1e-8) { const d = Math.sqrt(d2), p = rr - d; e.x += dx / d * p; e.z += dz / d * p; }
@@ -99,25 +142,50 @@ function resolveCircle(e, r) {
     }
   });
 }
-function rayCircle(ox, oz, dx, dz, cx, cz, r) {
-  const fx = ox - cx, fz = oz - cz, b = fx * dx + fz * dz, c = fx * fx + fz * fz - r * r;
-  if (c < 0) return 0;
-  const disc = b * b - c; if (disc < 0) return -1;
-  const t = -b - Math.sqrt(disc); return t >= 0 ? t : -1;
+let _tin = 0, _tout = 0;
+function ivCircle(ox, oz, dx, dz, cx, cz, r) {
+  const fx = ox - cx, fz = oz - cz, a = dx * dx + dz * dz, c = fx * fx + fz * fz - r * r;
+  if (a < 1e-12) { _tin = -1e9; _tout = 1e9; return c <= 0; }
+  const b = fx * dx + fz * dz, disc = b * b - a * c; if (disc < 0) return false;
+  const s = Math.sqrt(disc); _tin = (-b - s) / a; _tout = (-b + s) / a; return true;
 }
-function rayBox(ox, oz, dx, dz, c) {
-  let tmin = 0, tmax = 1e9;
-  if (Math.abs(dx) < 1e-9) { if (ox < c.x0 || ox > c.x1) return -1; }
-  else { let a = (c.x0 - ox) / dx, b = (c.x1 - ox) / dx; if (a > b) { const s = a; a = b; b = s; } tmin = Math.max(tmin, a); tmax = Math.min(tmax, b); if (tmin > tmax) return -1; }
-  if (Math.abs(dz) < 1e-9) { if (oz < c.z0 || oz > c.z1) return -1; }
-  else { let a = (c.z0 - oz) / dz, b = (c.z1 - oz) / dz; if (a > b) { const s = a; a = b; b = s; } tmin = Math.max(tmin, a); tmax = Math.min(tmax, b); if (tmin > tmax) return -1; }
-  return tmin;
+function ivBox(ox, oz, dx, dz, c) {
+  _tin = -1e9; _tout = 1e9;
+  if (Math.abs(dx) < 1e-9) { if (ox < c.x0 || ox > c.x1) return false; }
+  else { let a = (c.x0 - ox) / dx, b = (c.x1 - ox) / dx; if (a > b) { const s = a; a = b; b = s; } _tin = Math.max(_tin, a); _tout = Math.min(_tout, b); }
+  if (Math.abs(dz) < 1e-9) { if (oz < c.z0 || oz > c.z1) return false; }
+  else { let a = (c.z0 - oz) / dz, b = (c.z1 - oz) / dz; if (a > b) { const s = a; a = b; b = s; } _tin = Math.max(_tin, a); _tout = Math.min(_tout, b); }
+  return _tin <= _tout;
 }
-// distancia hasta el primer obstáculo a lo largo de un rayo (DDA sobre la grilla)
-function raycastWorld(ox, oz, dx, dz, maxT) {
+function ivY(oy, dy, y0, y1) {
+  if (Math.abs(dy) < 1e-9) return oy >= y0 && oy <= y1;
+  let a = (y0 - oy) / dy, b = (y1 - oy) / dy; if (a > b) { const s = a; a = b; b = s; }
+  _tin = Math.max(_tin, a); _tout = Math.min(_tout, b); return _tin <= _tout;
+}
+function hitCollider(c, ox, oy, oz, dx, dy, dz) {
+  const ok = c.t === 0 ? ivCircle(ox, oz, dx, dz, c.x, c.z, c.r) : ivBox(ox, oz, dx, dz, c);
+  if (!ok || !ivY(oy, dy, c.y0, c.y1) || _tout < 0) return -1;
+  return Math.max(0, _tin);
+}
+function rayTerrain(ox, oy, oz, dx, dy, dz, maxT) {
+  let prev = 0;
+  for (let t = 1.2; ; t += 1.2) {
+    const tt = Math.min(t, maxT), y = oy + dy * tt;
+    if (y < groundH(ox + dx * tt, oz + dz * tt)) {
+      let a = prev, b = tt;
+      for (let k = 0; k < 6; k++) { const m = (a + b) / 2; if (oy + dy * m < groundH(ox + dx * m, oz + dz * m)) b = m; else a = m; }
+      return b;
+    }
+    if (tt >= maxT || (dy >= 0 && y > MAX_H)) return maxT;
+    prev = tt;
+  }
+}
+// distancia hasta el primer obstáculo (o el suelo) a lo largo de un rayo 3D con dirección unitaria
+function raycast3D(ox, oy, oz, dx, dy, dz, maxT, terrain = true) {
   stamp++;
   const C = World.colliders;
   let best = maxT, gx = cellOf(ox), gz = cellOf(oz);
+  const flat = Math.abs(dx) + Math.abs(dz) < 1e-6;
   const sx = dx > 0 ? 1 : -1, sz = dz > 0 ? 1 : -1;
   const tdx = dx !== 0 ? Math.abs(CELL / dx) : 1e9, tdz = dz !== 0 ? Math.abs(CELL / dz) : 1e9;
   const bx = gx * CELL - HALF, bz = gz * CELL - HALF;
@@ -128,13 +196,14 @@ function raycastWorld(ox, oz, dx, dz, maxT) {
     const cell = grid[gz * GN + gx];
     for (let k = 0; k < cell.length; k++) {
       const c = C[cell[k]]; if (c.s === stamp) continue; c.s = stamp;
-      const h = c.t === 0 ? rayCircle(ox, oz, dx, dz, c.x, c.z, c.r) : rayBox(ox, oz, dx, dz, c);
+      const h = hitCollider(c, ox, oy, oz, dx, dy, dz);
       if (h >= 0 && h < best) best = h;
     }
+    if (flat) break;
     if (tmx < tmz) { t = tmx; tmx += tdx; gx += sx; if (gx < 0 || gx >= GN) break; }
     else { t = tmz; tmz += tdz; gz += sz; if (gz < 0 || gz >= GN) break; }
   }
-  return best;
+  return terrain ? rayTerrain(ox, oy, oz, dx, dy, dz, best) : best;
 }
 function buildingAt(x, z, m = 0) {
   const B = World.buildings;

@@ -33,9 +33,9 @@ try { Object.assign(SETTINGS, JSON.parse(localStorage.getItem('uep-settings') ||
 function saveSettings() { try { localStorage.setItem('uep-settings', JSON.stringify(SETTINGS)); } catch (e) { /* ignorar */ } }
 
 const DIFF = {
-  facil:   { reaction: 0.95, aim: 0.17, sight: 36, rateMul: 1.5, dmgMul: 0.8 },
-  normal:  { reaction: 0.6,  aim: 0.105, sight: 44, rateMul: 1.15, dmgMul: 1.0 },
-  dificil: { reaction: 0.36, aim: 0.065, sight: 52, rateMul: 1.0, dmgMul: 1.0 },
+  facil:   { reaction: 0.95, aim: 0.11, sight: 44, rateMul: 1.5, dmgMul: 0.8 },
+  normal:  { reaction: 0.6,  aim: 0.07, sight: 54, rateMul: 1.15, dmgMul: 1.0 },
+  dificil: { reaction: 0.36, aim: 0.045, sight: 64, rateMul: 1.0, dmgMul: 1.0 },
 };
 
 const IS_TOUCH = matchMedia('(pointer: coarse)').matches || ('ontouchstart' in window && navigator.maxTouchPoints > 0);

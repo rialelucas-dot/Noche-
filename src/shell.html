@@ -80,11 +80,21 @@ button:focus-visible, select:focus-visible { outline: 2px solid var(--sun); outl
 #actFill { background: var(--sun); }
 #fps { position: absolute; left: calc(12px + var(--sl)); bottom: calc(12px + var(--sb)); font-size: 11px; color: var(--muted); }
 
-#cross { position: fixed; left: 0; top: 0; width: 26px; height: 26px; margin: -13px 0 0 -13px; pointer-events: none; }
+#cross { position: fixed; left: 50%; top: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px; pointer-events: none; }
 #cross::before, #cross::after { content: ""; position: absolute; background: var(--text); box-shadow: 0 0 2px rgba(0,0,0,.8); }
-#cross::before { left: 12px; top: 0; width: 2px; height: 26px; }
-#cross::after { top: 12px; left: 0; height: 2px; width: 26px; }
-#cross.hit::before, #cross.hit::after { background: var(--danger); }
+#cross::before { left: 10px; top: 0; width: 2px; height: 22px; opacity: .85; }
+#cross::after { top: 10px; left: 0; height: 2px; width: 22px; opacity: .85; }
+#cross.hit::before, #cross.hit::after { background: var(--danger); opacity: 1; }
+#cross.hit.head::before, #cross.hit.head::after { background: #ffd34d; }
+#scope { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(circle at center, transparent 0, transparent min(34vh, 34vw), rgba(5,6,8,.97) calc(min(34vh, 34vw) + 2px)); }
+#scope::before, #scope::after { content: ""; position: absolute; left: 50%; top: 50%; background: rgba(10,10,10,.9); }
+#scope::before { width: min(68vh, 68vw); height: 1.5px; transform: translate(-50%, -50%); }
+#scope::after { height: min(68vh, 68vw); width: 1.5px; transform: translate(-50%, -50%); }
+#dmgDir { position: fixed; left: 50%; top: 50%; width: 220px; height: 220px; pointer-events: none; opacity: 0; transition: opacity .35s; transform: translate(-50%, -50%); }
+#dmgDir::before { content: ""; position: absolute; left: 50%; top: 0; width: 0; height: 0; transform: translateX(-50%); border-left: 18px solid transparent; border-right: 18px solid transparent; border-bottom: 26px solid rgba(255,60,40,.85); }
+#lockHint { position: fixed; left: 50%; top: 58%; transform: translateX(-50%); pointer-events: auto; cursor: pointer; font-weight: 700; font-size: 15px; padding: 10px 18px; }
+#lockHint kbd { font-family: var(--f-display); background: var(--sun); color: var(--ink); border-radius: 3px; padding: 0 6px; }
+.cine { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, transparent 62%, rgba(10,8,6,.38) 100%); }
 #vignette { position: fixed; inset: 0; pointer-events: none; opacity: 0; background: radial-gradient(ellipse at center, transparent 45%, rgba(255,40,30,.55) 100%); transition: opacity .25s; }
 #zoneTint { position: fixed; inset: 0; pointer-events: none; opacity: 0; background: radial-gradient(ellipse at center, rgba(89,184,255,.08) 30%, rgba(40,120,255,.42) 100%); transition: opacity .4s; }
 
@@ -92,7 +102,6 @@ button:focus-visible, select:focus-visible { outline: 2px solid var(--sun); outl
 #touch { position: fixed; inset: 0; pointer-events: none; }
 .stick { position: absolute; width: 120px; height: 120px; border-radius: 50%; border: 2px solid rgba(243,236,226,.25); background: rgba(14,17,23,.25); pointer-events: none; }
 .stick .knob { position: absolute; left: 35px; top: 35px; width: 50px; height: 50px; border-radius: 50%; background: rgba(243,236,226,.5); }
-#stickR .knob { background: rgba(255,155,84,.7); }
 .tbtn { position: absolute; pointer-events: auto; width: 56px; height: 56px; border-radius: 50%; border: 1px solid var(--panel-line); background: var(--panel); color: var(--text); font-weight: 700; font-size: 11px; letter-spacing: .04em; text-transform: uppercase; display: grid; place-items: center; touch-action: none; }
 .tbtn.wide { width: auto; border-radius: 28px; padding: 0 18px; height: 48px; font-size: 13px; }
 .tbtn.hot { background: var(--sun); color: var(--ink); border-color: var(--sun); }
@@ -139,18 +148,20 @@ h1 span { color: var(--sun); }
 }
 /* Táctil: posiciones */
 #stickL { left: calc(36px + var(--sl)); bottom: calc(36px + var(--sb)); }
-#stickR { right: calc(36px + var(--sr)); bottom: calc(36px + var(--sb)); }
-#bReload { right: calc(176px + var(--sr)); bottom: calc(28px + var(--sb)); }
-#bSwap { right: calc(176px + var(--sr)); bottom: calc(92px + var(--sb)); }
-#bScope { right: calc(180px + var(--sr)); bottom: calc(176px + var(--sb)); }
-#bHeal { right: calc(116px + var(--sr)); bottom: calc(176px + var(--sb)); }
-#bPick { right: calc(52px + var(--sr)); bottom: calc(176px + var(--sb)); }
+#bFire { right: calc(34px + var(--sr)); bottom: calc(44px + var(--sb)); width: 86px; height: 86px; font-size: 13px; background: rgba(255,90,79,.82); border-color: rgba(255,90,79,.9); }
+#bAim { right: calc(132px + var(--sr)); bottom: calc(28px + var(--sb)); }
+#bReload { right: calc(132px + var(--sr)); bottom: calc(96px + var(--sb)); }
+#bSwap { right: calc(196px + var(--sr)); bottom: calc(28px + var(--sb)); }
+#bHeal { right: calc(132px + var(--sr)); bottom: calc(164px + var(--sb)); }
+#bPick { right: calc(50px + var(--sr)); bottom: calc(150px + var(--sb)); }
 #bMap { right: calc(134px + var(--sr)); top: calc(12px + var(--st)); width: 48px; height: 48px; }
 body.touch #bottom { width: min(380px, 48vw); }
 @media (orientation: portrait) {
-  body.touch #bottom { bottom: calc(248px + var(--sb)); width: min(320px, 82vw); }
-  body.touch #prompt { bottom: calc(345px + var(--sb)); }
-  body.touch #actBar { bottom: calc(385px + var(--sb)); }
+  body.touch #bottom { left: calc(12px + var(--sl)); transform: none; bottom: calc(172px + var(--sb)); width: min(48vw, 186px); }
+  body.touch #slots { flex-direction: column; gap: 4px; }
+  body.touch .slot { padding: 4px 8px; }
+  body.touch #prompt { bottom: calc(50% + 36px); font-size: 13px; }
+  body.touch #actBar { bottom: calc(50% + 76px); }
 }
 @media (orientation: landscape) and (max-height: 500px) {
   #mini { width: 112px; height: 112px; }
@@ -160,11 +171,12 @@ body.touch #bottom { width: min(380px, 48vw); }
   #tl .big { font-size: 20px; }
   #zoneMsg .big { font-size: 16px; }
   .tbtn { width: 48px; height: 48px; font-size: 10px; }
-  #bReload { right: calc(168px + var(--sr)); bottom: calc(18px + var(--sb)); }
-  #bSwap { right: calc(168px + var(--sr)); bottom: calc(76px + var(--sb)); }
-  #bHeal { right: calc(168px + var(--sr)); bottom: calc(134px + var(--sb)); }
-  #bPick { right: calc(100px + var(--sr)); bottom: calc(166px + var(--sb)); }
-  #bScope { right: calc(40px + var(--sr)); bottom: calc(166px + var(--sb)); }
+  #bReload { right: calc(118px + var(--sr)); bottom: calc(76px + var(--sb)); }
+  #bSwap { right: calc(176px + var(--sr)); bottom: calc(18px + var(--sb)); }
+  #bHeal { right: calc(118px + var(--sr)); bottom: calc(134px + var(--sb)); }
+  #bPick { right: calc(50px + var(--sr)); bottom: calc(116px + var(--sb)); }
+  #bFire { width: 74px; height: 74px; bottom: calc(30px + var(--sb)); }
+  #bAim { right: calc(118px + var(--sr)); bottom: calc(18px + var(--sb)); }
   body.touch #bottom { width: min(300px, 40vw); bottom: calc(8px + var(--sb)); gap: 4px; }
   body.touch #statusRow { font-size: 11px; }
   body.touch .slot { padding: 4px 8px; }
@@ -207,17 +219,21 @@ body.touch #bottom { width: min(380px, 48vw); }
   </div>
   <div id="fps" class="hidden"></div>
 </div>
+<div class="cine"></div>
+<div id="scope" class="hidden"></div>
+<div id="dmgDir"></div>
 <div id="cross" class="hidden"></div>
+<div id="lockHint" class="chip hidden"><kbd>Clic</kbd> para controlar la cámara con el mouse</div>
 
 <div id="touch" class="hidden">
   <div class="stick" id="stickL"><div class="knob"></div></div>
-  <div class="stick" id="stickR"><div class="knob"></div></div>
   <button class="tbtn wide hot hidden" id="bJump">Saltar</button>
   <button class="tbtn" id="bPick">Tomar</button>
   <button class="tbtn" id="bReload">Rec.</button>
   <button class="tbtn" id="bHeal">Curar</button>
   <button class="tbtn" id="bSwap">Arma</button>
-  <button class="tbtn" id="bScope">Mira</button>
+  <button class="tbtn" id="bAim">Mira</button>
+  <button class="tbtn" id="bFire">Fuego</button>
   <button class="tbtn" id="bMap">Mapa</button>
 </div>
 
@@ -227,7 +243,7 @@ body.touch #bottom { width: min(380px, 48vw); }
   <div class="card">
     <div class="eyebrow">Battle royale · 25 jugadores · Isla Ocaso</div>
     <h1>Último<br>en <span>Pie</span></h1>
-    <p class="tag">Saltá del avión, juntá armas en los pueblos y mantenete dentro de la zona. Partidas de 7 minutos, livianas para cualquier compu o celular.</p>
+    <p class="tag">Saltá del avión, juntá armas en los pueblos y mantenete dentro de la zona. Tercera persona, colinas, pasto y luz de atardecer, en partidas de 7 minutos.</p>
     <div class="opts">
       <div class="opt"><label>Dificultad</label><div class="seg" id="optDiff"><button data-v="facil">Fácil</button><button data-v="normal">Normal</button><button data-v="dificil">Difícil</button></div></div>
       <div class="opt"><label>Gráficos</label><div class="seg" id="optQual"><button data-v="auto">Auto</button><button data-v="baja">Baja</button><button data-v="alta">Alta</button></div></div>
@@ -236,15 +252,15 @@ body.touch #bottom { width: min(380px, 48vw); }
     </div>
     <div class="row"><button class="btn" id="playBtn" disabled>Cargando…</button></div>
     <div class="keys" id="keysDesk">
-      <b>WASD</b><span>Moverse · <b>Mouse</b> apuntar · <b>Clic</b> disparar</span>
+      <b>WASD</b><span>Moverse · <b>Shift</b> correr · <b>Mouse</b> mirar</span>
+      <b>Clic</b><span>Disparar · <b>Clic der.</b> apuntar (mira telescópica en el rifle)</span>
       <b>E</b><span>Recoger · <b>R</b> recargar · <b>H</b> curarse (3 venda, 4 botiquín)</span>
-      <b>1 / 2 / Q</b><span>Cambiar arma · <b>Clic der.</b> mira del rifle · <b>M</b> mapa</span>
-      <b>Espacio</b><span>Saltar del avión · <b>Esc</b> pausa</span>
+      <b>1 / 2 / Q</b><span>Cambiar arma · <b>M</b> mapa · <b>Espacio</b> saltar · <b>Esc</b> pausa</span>
     </div>
     <div class="keys hidden" id="keysTouch">
-      <b>Stick izq.</b><span>Moverse</span>
-      <b>Stick der.</b><span>Apuntar; empujalo hasta el borde para disparar</span>
-      <b>Botones</b><span>Tomar, recargar, curar, cambiar arma, mira y mapa</span>
+      <b>Stick izq.</b><span>Moverse (al fondo corre)</span>
+      <b>Lado der.</b><span>Arrastrá para mirar</span>
+      <b>Botones</b><span>Fuego, mira, tomar, recargar, curar, cambiar arma y mapa</span>
     </div>
     <div id="loading"></div>
   </div>

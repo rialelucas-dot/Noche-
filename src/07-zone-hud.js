@@ -5,7 +5,17 @@ const PHASES = [
 ];
 const Zone = { cur: { x: 0, z: 0, r: 430 }, next: { x: 0, z: 0, r: 235 }, from: null, phase: 0, mode: 'wait', timer: 75, dps: 0.6 };
 const zoneWallGeo = new THREE.CylinderGeometry(1, 1, 1, 128, 1, true); zoneWallGeo.translate(0, 0.5, 0);
-const zoneWall = new THREE.Mesh(zoneWallGeo, new THREE.MeshBasicMaterial({ color: 0x4aa8ff, transparent: true, opacity: 0.24, side: THREE.DoubleSide, depthWrite: false }));
+const zoneWallU = { uTime: { value: 0 } };
+const zoneWall = new THREE.Mesh(zoneWallGeo, new THREE.ShaderMaterial({
+  uniforms: zoneWallU, transparent: true, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending,
+  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: `uniform float uTime; varying vec2 vUv;
+    void main(){
+      float fade = smoothstep(0.0, 0.08, vUv.y) * (1.0 - smoothstep(0.08, 0.45, vUv.y));
+      float lines = 0.6 + 0.4 * sin(vUv.y * 600.0 - uTime * 3.0) * sin(vUv.x * 900.0);
+      gl_FragColor = vec4(vec3(0.18, 0.45, 1.0) * fade * lines * 0.55, 1.0);
+    }`,
+}));
 const zoneRing = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.75, depthWrite: false }));
 scene.add(zoneWall, zoneRing);
 function zoneReset() { Object.assign(Zone, { cur: { x: 0, z: 0, r: 430 }, phase: 0, mode: 'wait', timer: PHASES[0].wait, dps: 0.6 }); pickNext(); }

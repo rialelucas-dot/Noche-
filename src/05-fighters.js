@@ -4,16 +4,25 @@ const BOT_COLORS = [0x5d6b4a, 0x6f6450, 0x4f5d6b, 0x7a5648, 0x6a6a68, 0x7c7350, 
 const SKIN = [0xe0b494, 0xc69072, 0x9a6a4f, 0xf0c8a8, 0x7a5040];
 const RECOIL = { pistola: 0.014, subfusil: 0.008, fusil: 0.011, escopeta: 0.05, precision: 0.06 };
 const PLAYER_R = 0.45, BODY_H = 1.82, HEAD_Y = 1.52;
+const gunGeo = (() => { // fusil genérico: cajón, cañón, cargador y culata
+  const parts = [new THREE.BoxGeometry(0.07, 0.11, 0.5).translate(0, 0, 0.3), new THREE.CylinderGeometry(0.017, 0.017, 0.5, 8).rotateX(Math.PI / 2).translate(0, 0.02, 0.78),
+    new THREE.BoxGeometry(0.05, 0.16, 0.08).rotateX(0.25).translate(0, -0.12, 0.36), new THREE.BoxGeometry(0.06, 0.1, 0.24).translate(0, -0.02, -0.04),
+    new THREE.BoxGeometry(0.03, 0.05, 0.16).translate(0, 0.09, 0.32)];
+  const g = joinGeos(parts); g.scale(1, 1, 1 / 1.04); return g;
+})();
 const G = {
-  leg: new THREE.BoxGeometry(0.17, 0.86, 0.2).translate(0, -0.43, 0),
-  torso: new THREE.BoxGeometry(0.46, 0.62, 0.26).translate(0, 1.2, 0),
-  vest: new THREE.BoxGeometry(0.52, 0.42, 0.33).translate(0, 1.24, 0),
-  head: new THREE.SphereGeometry(0.13, 14, 10).translate(0, 1.66, 0),
-  helmet: new THREE.SphereGeometry(0.155, 14, 8, 0, TAU, 0, Math.PI / 2).translate(0, 1.68, 0),
-  arm: new THREE.BoxGeometry(0.11, 0.52, 0.11).translate(0, -0.26, 0),
-  gun: new THREE.BoxGeometry(0.07, 0.11, 1).translate(0, 0, 0.5),
-  pack: new THREE.BoxGeometry(0.38, 0.46, 0.2).translate(0, 1.2, -0.24),
-  chute: new THREE.SphereGeometry(3, 16, 6, 0, TAU, 0, Math.PI / 2.4).scale(1, 0.55, 1).translate(0, 5.6, 0),
+  leg: new THREE.CapsuleGeometry(0.085, 0.7, 4, 10).translate(0, -0.43, 0),
+  boot: new THREE.BoxGeometry(0.15, 0.1, 0.27).translate(0, -0.86, 0.04),
+  hips: new THREE.CapsuleGeometry(0.15, 0.2, 4, 10).rotateZ(Math.PI / 2).translate(0, 0.92, 0),
+  torso: new THREE.CapsuleGeometry(0.19, 0.34, 4, 12).scale(1.18, 1, 0.78).translate(0, 1.24, 0),
+  vest: new THREE.CapsuleGeometry(0.2, 0.26, 4, 12).scale(1.25, 1, 0.92).translate(0, 1.26, 0.005),
+  neck: new THREE.CylinderGeometry(0.055, 0.065, 0.12, 10).translate(0, 1.52, 0),
+  head: new THREE.SphereGeometry(0.115, 18, 14).scale(0.92, 1.08, 1).translate(0, 1.66, 0.01),
+  helmet: new THREE.SphereGeometry(0.135, 18, 10, 0, TAU, 0, Math.PI / 1.9).scale(1, 0.95, 1.08).translate(0, 1.69, 0),
+  arm: new THREE.CapsuleGeometry(0.058, 0.44, 4, 8).translate(0, -0.27, 0),
+  gun: gunGeo,
+  pack: new THREE.CapsuleGeometry(0.15, 0.22, 4, 10).scale(1.2, 1, 0.65).translate(0, 1.22, -0.2),
+  chute: new THREE.SphereGeometry(3, 20, 8, 0, TAU, 0, Math.PI / 2.4).scale(1, 0.55, 1).translate(0, 5.6, 0),
 };
 const matCache = {};
 const std = (c, r = 0.85) => (matCache[c + ':' + r] ||= new THREE.MeshStandardMaterial({ color: c, roughness: r }));
@@ -24,12 +33,14 @@ function makeFighter(isBot, name, color) {
   const g = new THREE.Group(); g.rotation.order = 'YXZ';
   const pants = new THREE.Color(color).multiplyScalar(0.7).getHex();
   const part = (geo, mat, x = 0, y = 0, z = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; g.add(m); return m; };
-  const legL = part(G.leg, std(pants), -0.11, 0.88), legR = part(G.leg, std(pants), 0.11, 0.88);
-  part(G.torso, std(color)); const vest = part(G.vest, std(0x3b412f, 0.75)); part(G.head, std(pick(SKIN), 0.6));
+  const legL = part(G.leg, std(pants), -0.1, 0.9), legR = part(G.leg, std(pants), 0.1, 0.9);
+  legL.add(new THREE.Mesh(G.boot, std(0x2a2622, 0.7))); legR.add(new THREE.Mesh(G.boot, std(0x2a2622, 0.7)));
+  part(G.hips, std(pants)); part(G.torso, std(color)); const vest = part(G.vest, std(0x3b412f, 0.75));
+  part(G.neck, std(0xc69072, 0.6)); part(G.head, std(pick(SKIN), 0.55));
   if (!isBot || Math.random() < 0.6) part(G.helmet, std(isBot ? 0x4a4f3c : 0x2f3329, 0.6));
   const armR = part(G.arm, std(color), 0.27, 1.43, 0), armL = part(G.arm, std(color), -0.27, 1.43, 0);
-  armR.rotation.set(-1.3, 0, 0); armL.rotation.set(-1.4, 0, 0.55);
-  const gun = part(G.gun, std(0x24262a, 0.45), 0.1, 1.37, 0.12); part(G.pack, std(0x4a4436));
+  armR.rotation.set(-1.25, 0, 0.08); armL.rotation.set(-1.4, 0, 0.6);
+  const gun = part(G.gun, std(0x2a2c2e, 0.4), 0.1, 1.36, 0.08); part(G.pack, std(0x4a4436));
   const chute = new THREE.Mesh(G.chute, chuteMat(isBot ? 0xd8cfc0 : 0xff9b54)); chute.visible = false; g.add(chute);
   scene.add(g);
   const f = {

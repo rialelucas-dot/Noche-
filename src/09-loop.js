@@ -9,7 +9,7 @@ function startMatch() {
   if (!worldFresh) newWorld();
   worldFresh = false;
   spawnInitialLoot(); zoneReset(); clearFighters();
-  player = makeFighter(false, 'Vos', 0xb5643a);
+  player = makeFighter(false, 'Vos', 0x56604a);
   const names = [...BOT_NAMES].sort(() => Math.random() - 0.5);
   for (let i = 0; i < 24; i++) initBrain(makeFighter(true, names[i], pick(BOT_COLORS)));
   planeStart();
@@ -60,16 +60,61 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) toggl
 
 // ───────────────────────── calidad y rendimiento ─────────────────────────
 const Perf = { frames: 0, acc: 0, fps: 60 };
+// ───────────────────────── postprocesado tipo cine ─────────────────────────
+const GradeShader = {
+  uniforms: { tDiffuse: { value: null }, uTime: { value: 0 }, uVig: { value: 0.3 }, uGrain: { value: 0.028 }, uSat: { value: 1.06 }, uCA: { value: 0.0018 } },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: `uniform sampler2D tDiffuse; uniform float uTime, uVig, uGrain, uSat, uCA; varying vec2 vUv;
+    float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+    void main(){
+      vec2 d = vUv - 0.5; float r2 = dot(d, d);
+      vec3 c = vec3(texture2D(tDiffuse, vUv + d * uCA * r2 * 4.0).r, texture2D(tDiffuse, vUv).g, texture2D(tDiffuse, vUv - d * uCA * r2 * 4.0).b);
+      float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+      c = mix(vec3(l), c, uSat);
+      c *= mix(vec3(0.95, 0.99, 1.06), vec3(1.05, 1.0, 0.93), smoothstep(0.15, 0.75, l)); // sombras frías, luces cálidas
+      c = c * c * (3.0 - 2.0 * c) * 0.35 + c * 0.65;                                   // curva en S suave
+      c *= 1.0 - uVig * smoothstep(0.2, 0.9, r2 * 2.2);
+      c += (hash(vUv * 977.0 + fract(uTime)) - 0.5) * uGrain;
+      gl_FragColor = vec4(c, 1.0);
+    }`,
+};
+const Post = { composer: null, level: 0, rt: null, gtao: null, grade: null, fxaa: null };
+function setupPost(level) {
+  if (Post.composer) { Post.composer.dispose(); Post.rt.dispose(); Post.composer = null; }
+  Post.level = level; if (!level) return;
+  const sz = renderer.getDrawingBufferSize(new THREE.Vector2()), w = sz.x, h = sz.y;
+  Post.rt = new THREE.WebGLRenderTarget(w, h, { type: THREE.HalfFloatType, depthTexture: new THREE.DepthTexture(w, h, THREE.UnsignedIntType) });
+  const c = new EffectComposer(renderer); c.setPixelRatio(1); c.setSize(w, h);
+  const copy = new ShaderPass(CopyShader, 'tNone'); copy.uniforms.tDiffuse.value = Post.rt.texture; c.addPass(copy);
+  Post.gtao = null;
+  if (level >= 2) {
+    Post.gtao = new GTAOPass(scene, camera, w, h, { depthTexture: Post.rt.depthTexture });
+    Post.gtao.updateGtaoMaterial({ radius: 0.9, distanceExponent: 1.6, thickness: 2.0, scale: 1.2, samples: 12 });
+    Post.gtao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 5, rings: 2, samples: 12 });
+    c.addPass(Post.gtao);
+  }
+  c.addPass(new UnrealBloomPass(new THREE.Vector2(w / 2, h / 2), 0.25, 0.6, 0.9));
+  c.addPass(new OutputPass());
+  Post.grade = new ShaderPass(GradeShader); c.addPass(Post.grade);
+  Post.fxaa = new ShaderPass(FXAAShader); Post.fxaa.uniforms.resolution.value.set(1 / w, 1 / h); c.addPass(Post.fxaa);
+  Post.composer = c;
+}
+function render() {
+  if (!Post.composer) { renderer.setRenderTarget(null); renderer.render(scene, camera); return; }
+  renderer.setRenderTarget(Post.rt); renderer.render(scene, camera); renderer.setRenderTarget(null);
+  Post.grade.uniforms.uTime.value = performance.now() / 1000;
+  Post.composer.render();
+}
 function applyQuality() {
   const q = SETTINGS.qual, dpr = devicePixelRatio || 1;
-  Game.maxPR = q === 'alta' ? Math.min(dpr, 2) : q === 'baja' ? Math.min(dpr, 1) * 0.7 : Math.min(dpr, IS_TOUCH ? 1.3 : 1.5);
+  Game.maxPR = q === 'alta' ? Math.min(dpr, 2) : q === 'baja' ? Math.min(dpr, 1) * 0.75 : Math.min(dpr, IS_TOUCH ? 1.25 : 1.5);
   Game.pr = q === 'auto' ? Math.min(Game.maxPR, IS_TOUCH ? 1 : 1.25) : Game.maxPR;
   renderer.setPixelRatio(Game.pr);
-  setShadows(q === 'alta' || (q === 'auto' && !IS_TOUCH));
-  sun.shadow.mapSize.set(q === 'alta' ? 2048 : 1024, q === 'alta' ? 2048 : 1024); if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; }
-  grass.geometry.instanceCount = q === 'baja' ? 0 : q === 'alta' ? GRASS_MAX : IS_TOUCH ? 6000 : 11000;
+  setShadows(q !== 'baja' && !(q === 'auto' && IS_TOUCH));
+  const sm = q === 'alta' ? 4096 : 2048; sun.shadow.mapSize.set(sm, sm); if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; }
+  grass.geometry.instanceCount = q === 'baja' ? 0 : q === 'alta' ? GRASS_MAX : IS_TOUCH ? 9000 : 18000;
   grass.visible = grass.geometry.instanceCount > 0;
-  scene.fog.density = q === 'baja' ? 0.0058 : 0.0042;
+  setupPost(q === 'baja' ? 0 : q === 'auto' && IS_TOUCH ? 1 : 2);
   $('fps').classList.toggle('hidden', SETTINGS.fps !== 'on');
 }
 function setShadows(on) {
@@ -80,19 +125,20 @@ function perfTick(dt) {
   Perf.frames++; Perf.acc += dt;
   if (Perf.acc < 2) return;
   Perf.fps = Perf.frames / Perf.acc; Perf.frames = 0; Perf.acc = 0;
-  if (SETTINGS.fps === 'on') $('fps').textContent = `${Math.round(Perf.fps)} FPS · res ${Game.pr.toFixed(2)}x${renderer.shadowMap.enabled ? ' · sombras' : ''}${grass.visible ? ' · pasto' : ''}`;
+  if (SETTINGS.fps === 'on') $('fps').textContent = `${Math.round(Perf.fps)} FPS · res ${Game.pr.toFixed(2)}x${renderer.shadowMap.enabled ? ' · sombras' : ''}${grass.visible ? ' · pasto' : ''}${Post.gtao && Post.gtao.enabled ? ' · AO' : ''}${Post.composer ? ' · post' : ''}`;
   if (SETTINGS.qual !== 'auto' || Game.state === 'menu' || Game.paused) return;
   if (Perf.fps < 45) {
-    if (grass.geometry.instanceCount > 4000) grass.geometry.instanceCount = Math.floor(grass.geometry.instanceCount / 2);
+    if (Post.gtao && Post.gtao.enabled) Post.gtao.enabled = false;
+    else if (grass.geometry.instanceCount > 5000) grass.geometry.instanceCount = Math.floor(grass.geometry.instanceCount / 2);
     else if (renderer.shadowMap.enabled) setShadows(false);
-    else if (Game.pr > 0.6) { Game.pr = Math.max(0.6, Game.pr - 0.15); renderer.setPixelRatio(Game.pr); }
-  } else if (Perf.fps > 58 && Game.pr < Game.maxPR) { Game.pr = Math.min(Game.maxPR, Game.pr + 0.1); renderer.setPixelRatio(Game.pr); }
+    else if (Game.pr > 0.6) { Game.pr = Math.max(0.6, Game.pr - 0.15); renderer.setPixelRatio(Game.pr); setupPost(Post.level); }
+  } else if (Perf.fps > 58 && Game.pr < Game.maxPR) { Game.pr = Math.min(Game.maxPR, Game.pr + 0.1); renderer.setPixelRatio(Game.pr); setupPost(Post.level); }
 }
-addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); });
+addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); setupPost(Post.level); });
 
 // ───────────────────────── cámara en tercera persona ─────────────────────────
 const cam = { yaw: 0, pitch: -0.2, dist: 3.4, fov: 62, x: 0, y: 0, z: 0 };
-function setMenuView(on) { scene.fog.density = on ? 0.0022 : SETTINGS.qual === 'baja' ? 0.0058 : 0.0042; }
+function setMenuView(on) { scene.fog.density = on ? 0.0016 : SETTINGS.qual === 'baja' ? 0.004 : 0.0028; }
 function updateCamera(dt, now) {
   const P = camera.position;
   if (Game.state === 'menu') {
@@ -129,7 +175,7 @@ function updateCamera(dt, now) {
   if (Math.abs(camera.fov - cam.fov) > 0.05) { camera.fov = cam.fov; camera.updateProjectionMatrix(); }
   $('scope').classList.toggle('hidden', !p.scoped || !p.alive);
   $('cross').classList.toggle('hidden', p.scoped || p.inPlane || p.falling || !p.alive || Game.endShown);
-  const baseFog = SETTINGS.qual === 'baja' ? 0.0058 : 0.0042;
+  const baseFog = SETTINGS.qual === 'baja' ? 0.004 : 0.0028;
   scene.fog.density = baseFog / (1 + Math.max(0, P.y - groundH(P.x, P.z) - 15) / 30);
   followSun(cam.x, cam.z);
   Game.listener = p.inPlane ? Plane : p;
@@ -194,10 +240,10 @@ function frame(now) {
   if (Game.state !== 'menu') for (const f of fighters) syncMesh(f, Game.paused ? 0 : dt);
   updateCamera(Game.paused ? 0 : dt, now);
   sky.position.copy(camera.position);
-  waterU.uTime.value = grassU.uTime.value = now / 1000;
+  grassU.uTime.value = zoneWallU.uTime.value = now / 1000; waterNormal.offset.set(now * 0.000011, now * 0.000007);
   grassU.uCenter.value.set(Game.state === 'menu' ? camera.position.x : cam.x, Game.state === 'menu' ? camera.position.z : cam.z);
   fadeU.value.set(camera.position.x, camera.position.y, camera.position.z, Game.state === 'menu' ? 0 : 1);
-  renderer.render(scene, camera);
+  render();
   if (Game.state !== 'menu') Hud.drawFx(Game.paused ? 0 : dt);
 }
 
@@ -218,9 +264,18 @@ $('quitBtn').addEventListener('click', () => { newWorld(); toMenu(); });
 // arranque
 setTouchMode(IS_TOUCH);
 $('loading').textContent = 'Generando la isla…';
+loadSky();
+let ready = false;
+const enablePlay = () => { if (ready) return; ready = true; const btn = $('playBtn'); btn.disabled = false; btn.textContent = 'Jugar'; refreshBest(); if (Assets.failed) $('loading').textContent = 'Algunas texturas no cargaron: el juego usa colores de respaldo. Para verlo completo, abrilo desde un servidor web.'; };
+Assets.onChange = () => {
+  const pct = Assets.total ? Math.round(Assets.done / Assets.total * 100) : 0;
+  if (!ready) { $('playBtn').textContent = `Cargando ${pct}%`; $('loadBar').style.transform = `scaleX(${pct / 100})`; }
+  if (Assets.done >= Assets.total) enablePlay();
+};
+setTimeout(enablePlay, 25000);
 requestAnimationFrame(() => {
-  newWorld(); applyQuality(); setMenuView(true); refreshBest();
-  const btn = $('playBtn'); btn.disabled = false; btn.textContent = 'Jugar';
+  newWorld(); applyQuality(); setMenuView(true);
+  Assets.onChange();
   requestAnimationFrame(frame);
 });
 // acceso para pruebas automáticas

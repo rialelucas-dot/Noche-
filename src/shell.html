@@ -112,8 +112,8 @@ button:focus-visible, select:focus-visible { outline: 2px solid var(--sun); outl
 #bigmap canvas { width: min(88vw, 82vh); height: min(88vw, 82vh); border-radius: 10px; border: 1px solid var(--panel-line); }
 
 /* Pantallas */
-.screen { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: calc(20px + var(--st)) max(16px, var(--sr)) calc(20px + var(--sb)) max(16px, var(--sl)); background: linear-gradient(180deg, rgba(14,17,23,.35), rgba(14,17,23,.88)); overflow-y: auto; pointer-events: auto; }
-.card { width: min(520px, 100%); display: flex; flex-direction: column; gap: 18px; }
+.screen { position: fixed; inset: 0; display: flex; align-items: flex-start; justify-content: center; padding: calc(20px + var(--st)) max(16px, var(--sr)) calc(20px + var(--sb)) max(16px, var(--sl)); background: linear-gradient(180deg, rgba(14,17,23,.35), rgba(14,17,23,.88)); overflow-y: auto; pointer-events: auto; }
+.card { width: min(520px, 100%); display: flex; flex-direction: column; gap: 18px; margin: auto 0; }
 .eyebrow { font-size: 12px; letter-spacing: .22em; text-transform: uppercase; color: var(--sun); font-weight: 700; }
 h1 { font-family: var(--f-display); font-weight: 800; font-size: clamp(54px, 13vw, 92px); line-height: .86; margin: 0; letter-spacing: -.01em; text-transform: uppercase; text-wrap: balance; }
 h1 span { color: var(--sun); }
@@ -133,6 +133,8 @@ h1 span { color: var(--sun); }
 .stats { display: flex; gap: 10px; }
 .stats .chip { flex: 1; }
 #loading { color: var(--muted); font-size: 14px; }
+#loadWrap { height: 4px; max-width: 260px; }
+#loadBar { background: var(--sun); transform: scaleX(0); }
 @media (max-width: 640px) {
   #mini { width: 112px; height: 112px; }
   #feed { top: calc(132px + var(--st)); }
@@ -251,6 +253,7 @@ body.touch #bottom { width: min(380px, 48vw); }
       <div class="opt"><label>Mostrar FPS</label><div class="seg" id="optFps"><button data-v="on">Sí</button><button data-v="off">No</button></div></div>
     </div>
     <div class="row"><button class="btn" id="playBtn" disabled>Cargando…</button></div>
+    <div class="bar" id="loadWrap"><div id="loadBar"></div></div>
     <div class="keys" id="keysDesk">
       <b>WASD</b><span>Moverse · <b>Shift</b> correr · <b>Mouse</b> mirar</span>
       <b>Clic</b><span>Disparar · <b>Clic der.</b> apuntar (mira telescópica en el rifle)</span>

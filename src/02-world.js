@@ -1,20 +1,22 @@
 // ───────────────────────── render, cielo y luces ─────────────────────────
 const WORLD = 900, HALF = WORLD / 2;
-const renderer = new THREE.WebGLRenderer({ antialias: !IS_TOUCH, powerPreference: 'high-performance', stencil: false });
+const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance', stencil: false });
 renderer.setSize(innerWidth, innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.0;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 $('game').appendChild(renderer.domElement);
+const MAX_ANISO = renderer.capabilities.getMaxAnisotropy();
 
 const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
-const SUN_DIR = new THREE.Vector3(-0.6, 0.34, 0.72).normalize(); // sol bajo de la tarde
+const SUN_DIR = new THREE.Vector3(-0.6, 0.34, 0.72).normalize(); // se recalcula con el cielo HDR
 const SKY = { top: new THREE.Color(0x3a6db5), horizon: new THREE.Color(0xf2cfa6), ground: new THREE.Color(0x7a7266), sun: new THREE.Color(0xfff1d6) };
-const FOG_COLOR = new THREE.Color(0xdcc7ad);
+const FOG_COLOR = new THREE.Color(0xc9c2b8);
 const scene = new THREE.Scene();
-scene.fog = new THREE.FogExp2(FOG_COLOR, 0.0042);
-const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 800);
+scene.fog = new THREE.FogExp2(FOG_COLOR, 0.0032);
+const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 1200);
 
+// cielo de respaldo (si no carga el HDR)
 function skyMaterial() {
   return new THREE.ShaderMaterial({
     uniforms: { uSun: { value: SUN_DIR }, uTop: { value: SKY.top }, uHor: { value: SKY.horizon }, uGround: { value: SKY.ground }, uSunCol: { value: SKY.sun } },
@@ -35,42 +37,63 @@ function skyMaterial() {
 }
 const sky = new THREE.Mesh(new THREE.SphereGeometry(400, 32, 16), skyMaterial());
 sky.frustumCulled = false; sky.renderOrder = -1; scene.add(sky);
-{ // iluminación ambiental a partir del cielo (reflejos suaves en todos los materiales)
-  const skyScene = new THREE.Scene(); skyScene.add(new THREE.Mesh(new THREE.SphereGeometry(40, 32, 16), skyMaterial()));
-  const pm = new THREE.PMREMGenerator(renderer); scene.environment = pm.fromScene(skyScene, 0.04).texture; pm.dispose();
-}
-const hemi = new THREE.HemisphereLight(0xc8d8ff, 0x5a4a3a, 0.35);
-const sun = new THREE.DirectionalLight(0xffdcb0, 2.7);
+const pmrem = new THREE.PMREMGenerator(renderer);
+{ const skyScene = new THREE.Scene(); skyScene.add(new THREE.Mesh(new THREE.SphereGeometry(40, 32, 16), skyMaterial())); scene.environment = pmrem.fromScene(skyScene, 0.04).texture; }
+const hemi = new THREE.HemisphereLight(0xc8d8ff, 0x5a4a3a, 0.15);
+const sun = new THREE.DirectionalLight(0xffe2bf, 3.2);
 sun.shadow.mapSize.set(2048, 2048);
-Object.assign(sun.shadow.camera, { left: -55, right: 55, top: 55, bottom: -55, near: 1, far: 260 });
-sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.05;
+Object.assign(sun.shadow.camera, { left: -70, right: 70, top: 70, bottom: -70, near: 1, far: 320 });
+sun.shadow.bias = -0.0003; sun.shadow.normalBias = 0.04;
 const flash = new THREE.PointLight(0xffc070, 0, 10, 2);
 scene.add(hemi, sun, sun.target, flash);
 
+// Cielo HDR real (Poly Haven, CC0): fondo, luz ambiental y dirección del sol
+const Assets = { total: 0, done: 0, failed: 0, onChange: () => {} };
+function assetStart() { Assets.total++; Assets.onChange(); }
+function assetEnd(ok) { Assets.done++; if (!ok) Assets.failed++; Assets.onChange(); }
+function loadSky() {
+  assetStart();
+  new RGBELoader().load('assets/sky.hdr', (tex) => {
+    tex.mapping = THREE.EquirectangularReflectionMapping;
+    const { width: W, height: H, data } = tex.image, half = data instanceof Uint16Array;
+    const val = (i) => (half ? THREE.DataUtils.fromHalfFloat(data[i]) : data[i]);
+    let best = -1, bx = 0, by = 0; const hor = [0, 0, 0]; let hn = 0;
+    for (let y = 0; y < H; y += 2) for (let x = 0; x < W; x += 2) {
+      const i = (y * W + x) * 4, l = val(i) * 0.3 + val(i + 1) * 0.59 + val(i + 2) * 0.11;
+      if (l > best) { best = l; bx = x; by = y; }
+      if (Math.abs(y - H / 2) < H * 0.03) { hor[0] += val(i); hor[1] += val(i + 1); hor[2] += val(i + 2); hn++; }
+    }
+    const u = (bx + 0.5) / W, v = 1 - (by + 0.5) / H, th = (u - 0.5) * TAU, ph = (v - 0.5) * Math.PI;
+    SUN_DIR.set(Math.cos(ph) * Math.cos(th), Math.max(0.12, Math.sin(ph)), Math.cos(ph) * Math.sin(th)).normalize();
+    const m = Math.max(hor[0], hor[1], hor[2]) / hn || 1;
+    FOG_COLOR.setRGB(hor[0] / hn / m * 0.85, hor[1] / hn / m * 0.85, hor[2] / hn / m * 0.85); scene.fog.color.copy(FOG_COLOR);
+    scene.background = tex; scene.backgroundIntensity = 1.0;
+    scene.environment = pmrem.fromEquirectangular(tex).texture;
+    sky.visible = false; Assets.hdr = true; assetEnd(true);
+  }, undefined, () => assetEnd(false));
+}
+
 // Material que se vuelve transparente (con tramado) muy cerca de la cámara: el follaje no tapa la vista.
 const fadeU = { value: new THREE.Vector4(0, 0, 0, 1) };
-function fadeMat(params) {
-  const m = new THREE.MeshStandardMaterial(params);
-  m.onBeforeCompile = (sh) => {
-    sh.uniforms.uFade = fadeU;
-    sh.vertexShader = 'varying vec3 vWPos;\n' + sh.vertexShader.replace('#include <project_vertex>', `#include <project_vertex>
-      vec4 wp_ = vec4(transformed, 1.0);
-      #ifdef USE_INSTANCING
-        wp_ = instanceMatrix * wp_;
-      #endif
-      vWPos = (modelMatrix * wp_).xyz;`);
-    sh.fragmentShader = `varying vec3 vWPos;
+function addFade(sh) {
+  sh.uniforms.uFade = fadeU;
+  sh.vertexShader = 'varying vec3 vFadeW;\n' + sh.vertexShader.replace('#include <project_vertex>', `#include <project_vertex>
+    vec4 fw_ = vec4(transformed, 1.0);
+    #ifdef USE_INSTANCING
+      fw_ = instanceMatrix * fw_;
+    #endif
+    vFadeW = (modelMatrix * fw_).xyz;`);
+  sh.fragmentShader = `varying vec3 vFadeW;
 uniform vec4 uFade;
 float bayer2_(vec2 a) { a = floor(a); return fract(dot(a, vec2(0.5, a.y * 0.75))); }
 float bayer4_(vec2 a) { return bayer2_(0.5 * a) * 0.25 + bayer2_(a); }
 ` + sh.fragmentShader.replace('void main() {', `void main() {
-      if (uFade.w > 0.5) {
-        float a_ = smoothstep(1.0, 3.6, distance(vWPos, uFade.xyz));
-        if (a_ < 0.999 && a_ < bayer4_(gl_FragCoord.xy) + 0.03) discard;
-      }`);
-  };
-  return m;
+    if (uFade.w > 0.5) {
+      float a_ = smoothstep(1.0, 3.6, distance(vFadeW, uFade.xyz));
+      if (a_ < 0.999 && a_ < bayer4_(gl_FragCoord.xy) + 0.03) discard;
+    }`);
 }
+function fadeMat(params) { const m = new THREE.MeshStandardMaterial(params); m.onBeforeCompile = addFade; return m; }
 
 // ───────────────────────── isla y relieve ─────────────────────────
 let coastP = [0, 0, 0, 0];

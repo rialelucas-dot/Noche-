@@ -42,7 +42,7 @@ Armas: pistola, subfusil, fusil de asalto, escopeta y rifle de precisión, cada 
 - **Vegetación:** pinos y árboles con hojas reales recortadas, arbustos y pasto alto con textura que se mueve con el viento (todo instanciado, en la placa de video).
 - **Postprocesado:** oclusión ambiental (GTAO), brillo en las luces (bloom), corrección de color de cine con viñeta y grano, y suavizado de bordes (FXAA).
 - **Calidad Auto:** mide los FPS cada 2 segundos y, si hace falta, apaga la oclusión ambiental, reduce el pasto, apaga sombras y baja la resolución. En celular arranca sin sombras ni oclusión. **Baja** apaga todo el postprocesado.
-- El juego pesa ~240 KB y las texturas ~11 MB.
+- El juego pesa ~230 KB y las texturas ~5 MB.
 
 ## Créditos
 

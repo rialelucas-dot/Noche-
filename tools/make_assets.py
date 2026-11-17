@@ -39,10 +39,25 @@ for short, ident in TEX.items():
         im.resize((size, size), Image.LANCZOS).save(os.path.join(OUT, f'{short}_{suffix}.jpg'), quality=q, optimize=True)
     print('textura', short)
 
-# ── cielo HDR ──
+# ── cielo: el HDR se pasa a JPG (fondo y luz ambiental) y la dirección del sol a un JSON ──
 sky = api('files', 'table_mountain_1_puresky')['hdri']['2k']['hdr']['url']
-get(sky, os.path.join(OUT, 'sky.hdr'))
-print('cielo listo')
+hdr = get(sky, os.path.join(CACHE, 'table_mountain_1_puresky_2k.hdr'))
+raw = os.path.join(CACHE, 'sky.raw')
+subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', hdr, '-f', 'rawvideo', '-pix_fmt', 'gbrpf32le', raw], check=True)
+SW, SH = 2048, 1024
+pl = np.fromfile(raw, dtype='<f4').reshape(3, SH, SW)
+rgb = np.stack([pl[2], pl[0], pl[1]], axis=-1)  # planos g, b, r -> r, g, b
+lum = rgb @ np.array([0.2126, 0.7152, 0.0722])
+py, px = np.unravel_index(np.argmax(lum), lum.shape)
+u, v = (px + 0.5) / SW, 1 - (py + 0.5) / SH
+th, ph = (u - 0.5) * 2 * math.pi, (v - 0.5) * math.pi
+sun = [math.cos(ph) * math.cos(th), math.sin(ph), math.cos(ph) * math.sin(th)]
+hor = rgb[int(SH * 0.47):int(SH * 0.53)].reshape(-1, 3).mean(0); fog = (hor / hor.max() * 0.85).tolist()
+c = np.clip(rgb * 0.75, 0, None); c = np.clip((c * (2.51 * c + 0.03)) / (c * (2.43 * c + 0.59) + 0.14), 0, 1)  # ACES aproximado
+c = np.where(c <= 0.0031308, 12.92 * c, 1.055 * np.power(c, 1 / 2.4) - 0.055)
+Image.fromarray((c * 255 + 0.5).astype(np.uint8), 'RGB').save(os.path.join(OUT, 'sky.jpg'), quality=88, optimize=True)
+json.dump({'sun': sun, 'fog': fog}, open(os.path.join(OUT, 'sky.json'), 'w'))
+print('cielo listo, sol', [round(x, 3) for x in sun])
 
 random.seed(7)
 

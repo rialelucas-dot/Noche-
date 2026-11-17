@@ -8,7 +8,7 @@ const VENDOR = [
   'postprocessing/Pass.js', 'shaders/CopyShader.js', 'postprocessing/ShaderPass.js', 'postprocessing/MaskPass.js',
   'postprocessing/EffectComposer.js', 'postprocessing/RenderPass.js', 'shaders/OutputShader.js', 'postprocessing/OutputPass.js',
   'shaders/LuminosityHighPassShader.js', 'postprocessing/UnrealBloomPass.js', 'math/SimplexNoise.js', 'shaders/GTAOShader.js',
-  'shaders/PoissonDenoiseShader.js', 'postprocessing/GTAOPass.js', 'loaders/RGBELoader.js', 'shaders/FXAAShader.js',
+  'shaders/PoissonDenoiseShader.js', 'postprocessing/GTAOPass.js', 'shaders/FXAAShader.js',
 ];
 function wrapAddon(code, file) {
   const exported = new Set();

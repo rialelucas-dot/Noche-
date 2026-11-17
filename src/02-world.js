@@ -39,7 +39,7 @@ const sky = new THREE.Mesh(new THREE.SphereGeometry(400, 32, 16), skyMaterial())
 sky.frustumCulled = false; sky.renderOrder = -1; scene.add(sky);
 const pmrem = new THREE.PMREMGenerator(renderer);
 { const skyScene = new THREE.Scene(); skyScene.add(new THREE.Mesh(new THREE.SphereGeometry(40, 32, 16), skyMaterial())); scene.environment = pmrem.fromScene(skyScene, 0.04).texture; }
-const hemi = new THREE.HemisphereLight(0xc8d8ff, 0x5a4a3a, 0.15);
+const hemi = new THREE.HemisphereLight(0xc8d8ff, 0x5a4a3a, 0.3);
 const sun = new THREE.DirectionalLight(0xffe2bf, 3.2);
 sun.shadow.mapSize.set(2048, 2048);
 Object.assign(sun.shadow.camera, { left: -70, right: 70, top: 70, bottom: -70, near: 1, far: 320 });
@@ -47,28 +47,20 @@ sun.shadow.bias = -0.0003; sun.shadow.normalBias = 0.04;
 const flash = new THREE.PointLight(0xffc070, 0, 10, 2);
 scene.add(hemi, sun, sun.target, flash);
 
-// Cielo HDR real (Poly Haven, CC0): fondo, luz ambiental y dirección del sol
+// Cielo real (Poly Haven, CC0): fondo, luz ambiental y dirección del sol
 const Assets = { total: 0, done: 0, failed: 0, onChange: () => {} };
 function assetStart() { Assets.total++; Assets.onChange(); }
 function assetEnd(ok) { Assets.done++; if (!ok) Assets.failed++; Assets.onChange(); }
 function loadSky() {
   assetStart();
-  new RGBELoader().load('assets/sky.hdr', (tex) => {
-    tex.mapping = THREE.EquirectangularReflectionMapping;
-    const { width: W, height: H, data } = tex.image, half = data instanceof Uint16Array;
-    const val = (i) => (half ? THREE.DataUtils.fromHalfFloat(data[i]) : data[i]);
-    let best = -1, bx = 0, by = 0; const hor = [0, 0, 0]; let hn = 0;
-    for (let y = 0; y < H; y += 2) for (let x = 0; x < W; x += 2) {
-      const i = (y * W + x) * 4, l = val(i) * 0.3 + val(i + 1) * 0.59 + val(i + 2) * 0.11;
-      if (l > best) { best = l; bx = x; by = y; }
-      if (Math.abs(y - H / 2) < H * 0.03) { hor[0] += val(i); hor[1] += val(i + 1); hor[2] += val(i + 2); hn++; }
-    }
-    const u = (bx + 0.5) / W, v = 1 - (by + 0.5) / H, th = (u - 0.5) * TAU, ph = (v - 0.5) * Math.PI;
-    SUN_DIR.set(Math.cos(ph) * Math.cos(th), Math.max(0.12, Math.sin(ph)), Math.cos(ph) * Math.sin(th)).normalize();
-    const m = Math.max(hor[0], hor[1], hor[2]) / hn || 1;
-    FOG_COLOR.setRGB(hor[0] / hn / m * 0.85, hor[1] / hn / m * 0.85, hor[2] / hn / m * 0.85); scene.fog.color.copy(FOG_COLOR);
-    scene.background = tex; scene.backgroundIntensity = 1.0;
-    scene.environment = pmrem.fromEquirectangular(tex).texture;
+  fetch('assets/sky.json').then((r) => r.json()).then((j) => {
+    SUN_DIR.set(j.sun[0], Math.max(0.14, j.sun[1]), j.sun[2]).normalize();
+    FOG_COLOR.setRGB(j.fog[0], j.fog[1], j.fog[2]); scene.fog.color.copy(FOG_COLOR); assetEnd(true);
+  }).catch(() => assetEnd(false));
+  assetStart();
+  new THREE.TextureLoader().load('assets/sky.jpg', (tex) => {
+    tex.mapping = THREE.EquirectangularReflectionMapping; tex.colorSpace = THREE.SRGBColorSpace;
+    scene.background = tex; scene.environment = pmrem.fromEquirectangular(tex).texture;
     sky.visible = false; Assets.hdr = true; assetEnd(true);
   }, undefined, () => assetEnd(false));
 }
